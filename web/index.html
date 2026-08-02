@@ -6,7 +6,7 @@
   <title>berrybox</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400;1,9..144,900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -17,63 +17,128 @@
 /____/ |
 |    | /
 |____|/</pre>
-      <div>
-        <h1>berrybox</h1>
-        <p class="tag">provably fair booster boxes, priced by a Uniswap v4 hook</p>
-      </div>
+      <span class="wordmark">berrybox</span>
     </div>
+    <nav class="mono">
+      <a href="#box">the box</a>
+      <a href="#how">how it works</a>
+      <span class="status" id="status"></span>
+    </nav>
     <div class="wallet mono" id="wallet">connecting…</div>
   </header>
 
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>a booster box<br /><em>that prices itself.</em></h1>
+      <p class="lede">
+        Twenty-four cards, committed on-chain before the first pack sells.
+        A Uniswap v4 hook quotes every sealed pack at the expected value of
+        what is still inside the box. Pull the chase card and every remaining
+        pack reprices in the same block.
+      </p>
+      <div class="hero-actions">
+        <button id="heroBuyBtn">buy a pack<span class="mono" id="heroPrice"></span></button>
+        <a class="ghost mono" href="#how">how it works</a>
+      </div>
+      <p class="hero-fine mono" id="heroStrip"></p>
+    </div>
+    <div class="hero-fan" aria-hidden="true">
+      <img src="/cards/zoro.png" alt="" class="fan-l" />
+      <img src="/cards/luffy.png" alt="" class="fan-c" />
+      <img src="/cards/shanks.png" alt="" class="fan-r" />
+      <span class="fan-note mono">the three chase cards. all still in the box, until they aren't.</span>
+    </div>
+  </section>
+
   <main>
-    <section class="left">
-      <div class="pack-panel">
-        <div class="pack-art">
-          <img src="/pack.png" alt="sealed pack" id="packImg" />
-          <div class="inventory mono" id="inventory"></div>
-        </div>
-        <div class="pack-actions">
-          <div class="price-line">
-            <span class="label">pack price</span>
-            <span class="mono big" id="buyPrice">—</span>
+    <section class="left" id="box">
+      <div class="panel pack-panel">
+        <span class="panel-no mono">01</span>
+        <h2>the box</h2>
+        <div class="pack-body">
+          <div class="pack-art">
+            <img src="/pack.png" alt="sealed pack" id="packImg" />
+            <div class="inventory mono" id="inventory"></div>
           </div>
-          <div class="price-line">
-            <span class="label">buyback</span>
-            <span class="mono" id="sellPrice">—</span>
+          <div class="pack-actions">
+            <div class="price-line">
+              <span class="label">pack price</span>
+              <span class="mono big" id="buyPrice">—</span>
+            </div>
+            <div class="price-line">
+              <span class="label">buyback</span>
+              <span class="mono" id="sellPrice">—</span>
+            </div>
+            <button id="buyBtn">buy pack</button>
+            <button id="openBtn" class="secondary">open pack</button>
+            <button id="sellBtn" class="secondary">sell pack back</button>
+            <p class="note">
+              Buy at EV × 1.15. Sell back any sealed pack at EV × 0.90,
+              paid from the house float. The spread is the house edge, on-chain
+              where you can see it.
+            </p>
           </div>
-          <button id="buyBtn">buy pack</button>
-          <button id="openBtn" class="secondary">open pack</button>
-          <button id="sellBtn" class="secondary">sell pack back</button>
-          <p class="note">Pack price is the expected value of the remaining box contents times 1.15. It reprices the moment anyone pulls a card. Buyback pays EV times 0.90 from the house float.</p>
         </div>
       </div>
 
-      <div class="math-panel">
+      <div class="panel">
+        <span class="panel-no mono">02</span>
         <h2>box math</h2>
-        <table class="mono">
+        <table class="mono math-table">
           <tbody id="mathRows"></tbody>
         </table>
       </div>
 
-      <div class="feed-panel">
+      <div class="panel">
+        <span class="panel-no mono">03</span>
         <h2>tape</h2>
-        <div class="mono" id="feed"></div>
+        <div class="mono feed" id="feed"></div>
       </div>
     </section>
 
     <section class="right">
-      <div class="manifest-panel">
+      <div class="panel">
+        <span class="panel-no mono">04</span>
         <h2>still in the box</h2>
         <p class="note">The full manifest is committed on-chain at load. Contents are public, draw order is not.</p>
         <div id="manifest"></div>
       </div>
 
-      <div class="collection-panel">
+      <div class="panel">
+        <span class="panel-no mono">05</span>
         <h2>your pulls</h2>
         <div class="cards" id="collection"></div>
       </div>
     </section>
   </main>
+
+  <section class="how" id="how">
+    <h2>how it works</h2>
+    <div class="how-grid">
+      <div class="how-step">
+        <span class="mono step-no">i.</span>
+        <h3>the manifest is public</h3>
+        <p>Every card in the box is written to the chain when the box is loaded.
+        You know exactly what can be pulled and what each card is worth. The only
+        secret is the draw order, decided by commit-reveal at opening time.</p>
+      </div>
+      <div class="how-step">
+        <span class="mono step-no">ii.</span>
+        <h3>the pool is the vending machine</h3>
+        <p>Packs are a token you buy by swapping USDC through a Uniswap v4 pool.
+        The hook replaces the AMM curve entirely: no liquidity providers, just a
+        quote derived from the oracle value of the unopened cards.</p>
+      </div>
+      <div class="how-step">
+        <span class="mono step-no">iii.</span>
+        <h3>sealed packs stay liquid</h3>
+        <p>No card shop buys back sealed packs at fair value. The hook does,
+        at EV minus a spread. Pulled a bad read on the box? Sell your sealed
+        packs back and walk away.</p>
+      </div>
+    </div>
+    <p class="colophon mono">uniswap v4 hook demo · runs on local anvil · art generated with higgsfield · one piece belongs to shueisha, this is a non-commercial demo</p>
+  </section>
 
   <div class="overlay" id="overlay">
     <div class="reveal-card" id="revealCard"></div>

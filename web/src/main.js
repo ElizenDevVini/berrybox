@@ -74,7 +74,8 @@ const poolKey = {
 };
 
 const $ = (id) => document.getElementById(id);
-const usd = (v) => "$" + Number(formatUnits(v, 6)).toLocaleString("en-US", { maximumFractionDigits: 2 });
+const usd = (v) =>
+  "$" + Number(formatUnits(v, 6)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 let busy = false;
 const feedLines = [];
@@ -149,14 +150,27 @@ async function openPack() {
   showReveal(card);
 }
 
+let revealStage = null; // { card } while waiting for the tear click
+
 function showReveal(card) {
   const el = $("revealCard");
-  el.className = "reveal-card" + (card.chase ? " chase" : "");
-  el.innerHTML = `<img src="/cards/${card.slug}.png" alt="${card.name}" /><h3>${card.name}</h3><p>${card.sub} · ${card.rarity}</p>`;
+  revealStage = { card };
+  el.className = "reveal-card stage-pack";
+  el.innerHTML = `<img src="/pack.png" alt="sealed pack" /><h3>you got a pack</h3><p>click to tear it open</p>`;
   $("overlay").classList.add("show");
 }
 
-$("overlay").addEventListener("click", () => $("overlay").classList.remove("show"));
+$("overlay").addEventListener("click", () => {
+  if (revealStage) {
+    const card = revealStage.card;
+    revealStage = null;
+    const el = $("revealCard");
+    el.className = "reveal-card" + (card.chase ? " chase" : "");
+    el.innerHTML = `<img src="/cards/${card.slug}.png" alt="${card.name}" /><h3>${card.name}</h3><p>${card.sub} · ${card.rarity} · click anywhere to close</p>`;
+    return;
+  }
+  $("overlay").classList.remove("show");
+});
 
 async function myCards() {
   const logs = await pub.getLogs({
@@ -173,7 +187,10 @@ async function myCards() {
       if (owner.toLowerCase() !== account.address.toLowerCase()) continue;
       const cardId = await pub.readContract({ address: addr.vault, abi: vaultAbi, functionName: "cardIdOf", args: [id] });
       owned.push({ tokenId: id, cardId: Number(cardId) });
-    } catch {} // burned (redeemed) tokens revert ownerOf
+    } catch (e) {
+      // burned (redeemed) tokens revert ownerOf; anything else is a real bug
+      if (!(e.message || "").includes("NOT_MINTED")) console.error("myCards", e);
+    }
   }
   return owned;
 }
@@ -205,6 +222,10 @@ async function refresh() {
   $("buyBtn").disabled = busy || buy == null;
   $("openBtn").disabled = busy || packBal === 0n;
   $("sellBtn").disabled = busy || packBal === 0n || sell == null;
+  $("heroPrice").textContent = buy != null ? usd(buy) : "sold out";
+  $("heroBuyBtn").disabled = busy || buy == null;
+  $("heroStrip").textContent =
+    `EV per pack ${usd(ev)} · ${remaining.length} cards sealed · house float ${usd(usdcFloat)}`;
 
   const sum = ev * BigInt(remaining.length);
   $("mathRows").innerHTML = [
@@ -228,7 +249,8 @@ async function refresh() {
   $("manifest").innerHTML = Object.entries(CARDS).map(([id, c]) => {
     const n = counts[id] || 0;
     return `<div class="manifest-row ${n === 0 ? "gone" : ""}">
-      <span class="name">${c.name} <span class="rarity ${c.chase ? "chase" : ""}">${c.rarity}</span></span>
+      <img class="thumb" src="/cards/${c.slug}.png" alt="" />
+      <span class="name">${c.name}<span class="rarity ${c.chase ? "chase" : ""}">${c.rarity}</span></span>
       <span class="count">x${n}</span>
       <span class="price">${usd(prices[id])}</span>
     </div>`;
@@ -254,6 +276,8 @@ async function refresh() {
 async function act(fn) {
   if (busy) return;
   busy = true;
+  document.body.classList.add("busy");
+  $("status").textContent = "tx pending…";
   refresh().catch(() => {});
   try {
     await fn();
@@ -262,10 +286,13 @@ async function act(fn) {
     feed(`error: ${(e.shortMessage || e.message || "tx failed").slice(0, 80)}`);
   }
   busy = false;
+  document.body.classList.remove("busy");
+  $("status").textContent = "";
   await refresh().catch(() => {});
 }
 
 $("buyBtn").addEventListener("click", () => act(buyPack));
+$("heroBuyBtn").addEventListener("click", () => act(buyPack));
 $("openBtn").addEventListener("click", () => act(openPack));
 $("sellBtn").addEventListener("click", () => act(sellPack));
 
