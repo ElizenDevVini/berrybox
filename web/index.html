@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>berrybox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <pre class="mascot">  ____
+ /    /|
+/____/ |
+|    | /
+|____|/</pre>
+      <div>
+        <h1>berrybox</h1>
+        <p class="tag">provably fair booster boxes, priced by a Uniswap v4 hook</p>
+      </div>
+    </div>
+    <div class="wallet mono" id="wallet">connecting…</div>
+  </header>
+
+  <main>
+    <section class="left">
+      <div class="pack-panel">
+        <div class="pack-art">
+          <img src="/pack.png" alt="sealed pack" id="packImg" />
+          <div class="inventory mono" id="inventory"></div>
+        </div>
+        <div class="pack-actions">
+          <div class="price-line">
+            <span class="label">pack price</span>
+            <span class="mono big" id="buyPrice">—</span>
+          </div>
+          <div class="price-line">
+            <span class="label">buyback</span>
+            <span class="mono" id="sellPrice">—</span>
+          </div>
+          <button id="buyBtn">buy pack</button>
+          <button id="openBtn" class="secondary">open pack</button>
+          <button id="sellBtn" class="secondary">sell pack back</button>
+          <p class="note">Pack price is the expected value of the remaining box contents times 1.15. It reprices the moment anyone pulls a card. Buyback pays EV times 0.90 from the house float.</p>
+        </div>
+      </div>
+
+      <div class="math-panel">
+        <h2>box math</h2>
+        <table class="mono">
+          <tbody id="mathRows"></tbody>
+        </table>
+      </div>
+
+      <div class="feed-panel">
+        <h2>tape</h2>
+        <div class="mono" id="feed"></div>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="manifest-panel">
+        <h2>still in the box</h2>
+        <p class="note">The full manifest is committed on-chain at load. Contents are public, draw order is not.</p>
+        <div id="manifest"></div>
+      </div>
+
+      <div class="collection-panel">
+        <h2>your pulls</h2>
+        <div class="cards" id="collection"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="overlay" id="overlay">
+    <div class="reveal-card" id="revealCard"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

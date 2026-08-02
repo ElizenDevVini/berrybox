@@ -1,0 +1,15 @@
+{
+  "name": "berrybox-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
