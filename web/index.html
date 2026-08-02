@@ -31,10 +31,11 @@
     <div class="hero-copy">
       <h1>a booster box<br /><em>that prices itself.</em></h1>
       <p class="lede">
-        Twenty-four cards, committed on-chain before the first pack sells.
-        A Uniswap v4 hook quotes every sealed pack at the expected value of
-        what is still inside the box. Pull the chase card and every remaining
-        pack reprices in the same block.
+        Twenty-four real One Piece TCG cards, committed on-chain before the
+        first pack sells. A Uniswap v4 hook quotes every sealed pack at the
+        expected value of what is still inside the box, marked to live
+        TCGplayer prices. Pull the Manga Shanks and every remaining pack
+        reprices in the same block.
       </p>
       <div class="hero-actions">
         <button id="heroBuyBtn">buy a pack<span class="mono" id="heroPrice"></span></button>
@@ -100,7 +101,7 @@
       <div class="panel">
         <span class="panel-no mono">04</span>
         <h2>still in the box</h2>
-        <p class="note">The full manifest is committed on-chain at load. Contents are public, draw order is not.</p>
+        <p class="note">The full manifest is committed on-chain at load. Contents are public, draw order is not. Prices are TCGplayer market for the real singles, pushed to the on-chain oracle.</p>
         <div id="manifest"></div>
       </div>
 
@@ -118,9 +119,10 @@
       <div class="how-step">
         <span class="mono step-no">i.</span>
         <h3>the manifest is public</h3>
-        <p>Every card in the box is written to the chain when the box is loaded.
-        You know exactly what can be pulled and what each card is worth. The only
-        secret is the draw order, decided by commit-reveal at opening time.</p>
+        <p>Every card in the box is a real TCG single, written to the chain when
+        the box is loaded. You know exactly what can be pulled and what each card
+        trades for on TCGplayer. The only secret is the draw order, decided by
+        commit-reveal at opening time.</p>
       </div>
       <div class="how-step">
         <span class="mono step-no">ii.</span>

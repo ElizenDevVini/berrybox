@@ -16,15 +16,16 @@ const chain = {
 const pub = createPublicClient({ chain, transport: http(RPC) });
 const wallet = createWalletClient({ chain, transport: http(RPC), account });
 
+// Each entry is a real One Piece TCG single; tcg is the TCGplayer product id the oracle tracks.
 const CARDS = {
-  1: { slug: "luffy", name: "Monkey D. Luffy", sub: "Gear Five", rarity: "secret rare", chase: true },
-  2: { slug: "shanks", name: "Shanks", sub: "Red-Haired Emperor", rarity: "manga rare", chase: true },
-  3: { slug: "zoro", name: "Roronoa Zoro", sub: "Pirate Hunter", rarity: "alt art", chase: true },
-  4: { slug: "nami", name: "Nami", sub: "Cat Burglar", rarity: "common", chase: false },
-  5: { slug: "sanji", name: "Sanji", sub: "Black Leg", rarity: "common", chase: false },
-  6: { slug: "chopper", name: "Tony Tony Chopper", sub: "Cotton Candy Lover", rarity: "common", chase: false },
-  7: { slug: "usopp", name: "Usopp", sub: "God of Snipers", rarity: "common", chase: false },
-  8: { slug: "robin", name: "Nico Robin", sub: "Devil Child", rarity: "common", chase: false },
+  1: { slug: "luffy", name: "Monkey.D.Luffy", sub: "Gear Five", set: "OP05-119", rarity: "SEC alt art", tcg: 530122, chase: true },
+  2: { slug: "shanks", name: "Shanks", sub: "Red-Haired Emperor", set: "OP01-120", rarity: "SEC manga", tcg: 454666, chase: true },
+  3: { slug: "zoro", name: "Roronoa Zoro", sub: "Pirate Hunter", set: "OP01-025", rarity: "SR parallel", tcg: 453511, chase: true },
+  4: { slug: "nami", name: "Nami", sub: "Cat Burglar", set: "OP01-016", rarity: "R", tcg: 454534, chase: false },
+  5: { slug: "sanji", name: "Sanji", sub: "Black Leg", set: "OP01-013", rarity: "R", tcg: 454529, chase: false },
+  6: { slug: "chopper", name: "Tony Tony.Chopper", sub: "Cotton Candy Lover", set: "OP01-015", rarity: "UC", tcg: 454533, chase: false },
+  7: { slug: "usopp", name: "Usopp", sub: "God of Snipers", set: "OP01-004", rarity: "R", tcg: 454516, chase: false },
+  8: { slug: "robin", name: "Nico Robin", sub: "Devil Child", set: "OP01-017", rarity: "R", tcg: 454538, chase: false },
 };
 
 const hookAbi = parseAbi([
@@ -166,7 +167,7 @@ $("overlay").addEventListener("click", () => {
     revealStage = null;
     const el = $("revealCard");
     el.className = "reveal-card" + (card.chase ? " chase" : "");
-    el.innerHTML = `<img src="/cards/${card.slug}.png" alt="${card.name}" /><h3>${card.name}</h3><p>${card.sub} · ${card.rarity} · click anywhere to close</p>`;
+    el.innerHTML = `<img src="/cards/${card.slug}.png" alt="${card.name}" /><h3>${card.name}</h3><p>${card.set} · ${card.rarity} · click anywhere to close</p>`;
     return;
   }
   $("overlay").classList.remove("show");
@@ -230,7 +231,7 @@ async function refresh() {
   const sum = ev * BigInt(remaining.length);
   $("mathRows").innerHTML = [
     ["cards left in box", remaining.length],
-    ["value left (oracle)", usd(sum)],
+    ["value left (TCGplayer market)", usd(sum)],
     ["EV per pack", usd(ev)],
     ["house float", usd(usdcFloat)],
   ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
@@ -250,7 +251,7 @@ async function refresh() {
     const n = counts[id] || 0;
     return `<div class="manifest-row ${n === 0 ? "gone" : ""}">
       <img class="thumb" src="/cards/${c.slug}.png" alt="" />
-      <span class="name">${c.name}<span class="rarity ${c.chase ? "chase" : ""}">${c.rarity}</span></span>
+      <span class="name"><a href="https://www.tcgplayer.com/product/${c.tcg}" target="_blank" rel="noopener">${c.name}</a><span class="rarity ${c.chase ? "chase" : ""}">${c.set} · ${c.rarity}</span></span>
       <span class="count">x${n}</span>
       <span class="price">${usd(prices[id])}</span>
     </div>`;
@@ -263,7 +264,7 @@ async function refresh() {
         return `<div class="card-tile ${c.chase ? "chase" : ""}">
           <img src="/cards/${c.slug}.png" alt="${c.name}" />
           <div class="card-name">${c.name}</div>
-          <div class="card-sub">#${o.tokenId} · ${usd(prices[o.cardId])}</div>
+          <div class="card-sub">#${o.tokenId} · ${c.set} · ${usd(prices[o.cardId])}</div>
           <button class="secondary" data-redeem="${o.tokenId}">redeem physical</button>
         </div>`;
       }).join("")

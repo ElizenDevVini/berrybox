@@ -251,6 +251,8 @@ body.busy button { cursor: wait; }
   flex-shrink: 0;
 }
 .manifest-row .name { flex: 1; line-height: 1.3; }
+.manifest-row .name a { color: inherit; text-decoration: none; }
+.manifest-row .name a:hover { color: var(--accent); }
 .manifest-row .rarity { display: block; font-size: 11px; font-style: italic; color: var(--faint); }
 .manifest-row .rarity.chase { color: var(--accent); }
 .manifest-row .count, .manifest-row .price { font-family: "IBM Plex Mono", monospace; font-size: 12px; }

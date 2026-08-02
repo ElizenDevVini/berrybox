@@ -42,16 +42,17 @@ contract Deploy is Script {
         packs = new Booster(oracle, vault);
         vault.setBooster(address(packs));
 
+        // Seed values only; scripts/oracle.mjs overwrites with live TCGplayer market prices.
         uint16[] memory ids = new uint16[](8);
         uint256[] memory prices = new uint256[](8);
-        (ids[0], prices[0]) = (1, 1200e6); // luffy, gear five secret rare
-        (ids[1], prices[1]) = (2, 2500e6); // shanks, manga rare
-        (ids[2], prices[2]) = (3, 600e6); // zoro, alt art
-        (ids[3], prices[3]) = (4, 12e6); // nami
-        (ids[4], prices[4]) = (5, 10e6); // sanji
-        (ids[5], prices[5]) = (6, 8e6); // chopper
-        (ids[6], prices[6]) = (7, 9e6); // usopp
-        (ids[7], prices[7]) = (8, 15e6); // robin
+        (ids[0], prices[0]) = (1, 250e6); // luffy OP05-119 SEC alt art
+        (ids[1], prices[1]) = (2, 4000e6); // shanks OP01-120 SEC manga
+        (ids[2], prices[2]) = (3, 250e6); // zoro OP01-025 SR parallel
+        (ids[3], prices[3]) = (4, 4e6); // nami OP01-016
+        (ids[4], prices[4]) = (5, 530_000); // sanji OP01-013
+        (ids[5], prices[5]) = (6, 580_000); // chopper OP01-015
+        (ids[6], prices[6]) = (7, 250_000); // usopp OP01-004
+        (ids[7], prices[7]) = (8, 490_000); // robin OP01-017
         oracle.setPrices(ids, prices);
 
         uint160 flags = uint160(
