@@ -12,25 +12,26 @@ import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockC
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
-import {ERC20} from "solmate/src/tokens/ERC20.sol";
 
 import {Booster} from "./Booster.sol";
 
 /// @notice Custom-curve v4 hook that sells and buys back sealed packs at the expected
-/// value of the remaining box contents. The hook is the sole counterparty: it holds the
-/// unsold pack inventory and the USDC float as ERC-6909 claims on the PoolManager, and
-/// the pool has no LP liquidity.
+/// value of the remaining box contents, quoted in native ETH. The hook is the sole
+/// counterparty: it holds the unsold pack inventory and the ETH float as ERC-6909
+/// claims on the PoolManager, and the pool has no LP liquidity.
+///
+/// Card values come from the oracle in USD (TCGplayer market); the oracle's ethUsd
+/// rate converts quotes to wei.
 ///
 /// Supported swaps (PACK must always be the specified currency, whole packs only):
-///  - exact-output PACK for USDC: buy packs at EV * premiumBps
-///  - exact-input PACK for USDC: sell packs back at EV * buybackBps
+///  - exact-output PACK for ETH: buy packs at EV * premiumBps
+///  - exact-input PACK for ETH: sell packs back at EV * buybackBps
 contract BoxHook is BaseHook, IUnlockCallback, Owned {
     using CurrencySettler for Currency;
     using CurrencyLibrary for Currency;
     using SafeCast for uint256;
 
     Booster public immutable packs;
-    ERC20 public immutable usdc;
     uint256 public immutable premiumBps;
     uint256 public immutable buybackBps;
 
@@ -39,8 +40,8 @@ contract BoxHook is BaseHook, IUnlockCallback, Owned {
     uint8 constant DEPOSIT = 0;
     uint8 constant WITHDRAW = 1;
 
-    event PacksBought(address indexed sender, uint256 count, uint256 cost);
-    event PacksSold(address indexed sender, uint256 count, uint256 payout);
+    event PacksBought(address indexed sender, uint256 count, uint256 costWei);
+    event PacksSold(address indexed sender, uint256 count, uint256 payoutWei);
 
     error WrongPoolCurrencies();
     error PackMustBeSpecified();
@@ -49,16 +50,11 @@ contract BoxHook is BaseHook, IUnlockCallback, Owned {
     error NoBuybackFloat();
     error NoExternalLiquidity();
 
-    constructor(
-        IPoolManager _poolManager,
-        Booster _packs,
-        ERC20 _usdc,
-        uint256 _premiumBps,
-        uint256 _buybackBps,
-        address _owner
-    ) BaseHook(_poolManager) Owned(_owner) {
+    constructor(IPoolManager _poolManager, Booster _packs, uint256 _premiumBps, uint256 _buybackBps, address _owner)
+        BaseHook(_poolManager)
+        Owned(_owner)
+    {
         packs = _packs;
-        usdc = _usdc;
         premiumBps = _premiumBps;
         buybackBps = _buybackBps;
     }
@@ -83,10 +79,10 @@ contract BoxHook is BaseHook, IUnlockCallback, Owned {
     }
 
     function _beforeInitialize(address, PoolKey calldata key, uint160) internal override returns (bytes4) {
-        address c0 = Currency.unwrap(key.currency0);
-        address c1 = Currency.unwrap(key.currency1);
-        bool valid = (c0 == address(packs) && c1 == address(usdc)) || (c0 == address(usdc) && c1 == address(packs));
-        if (!valid) revert WrongPoolCurrencies();
+        // Native ETH is always currency0; the pack token must be currency1.
+        if (!key.currency0.isAddressZero() || Currency.unwrap(key.currency1) != address(packs)) {
+            revert WrongPoolCurrencies();
+        }
         poolKey = key;
         return BaseHook.beforeInitialize.selector;
     }
@@ -116,14 +112,14 @@ contract BoxHook is BaseHook, IUnlockCallback, Owned {
         BeforeSwapDelta returnDelta;
 
         if (!exactInput) {
-            // Buy: credit the swapper's USDC to the hook as claims, pay packs from claim inventory.
+            // Buy: credit the swapper's ETH to the hook as claims, pay packs from claim inventory.
             uint256 cost = quoteBuy(packCount);
             unspecified.take(poolManager, address(this), cost, true);
             specified.settle(poolManager, address(this), packCount, true);
             returnDelta = toBeforeSwapDelta(-packCount.toInt128(), cost.toInt128());
             emit PacksBought(sender, packCount, cost);
         } else {
-            // Sell back: take packs into claim inventory, pay USDC from the claim float.
+            // Sell back: take packs into claim inventory, pay ETH from the claim float.
             uint256 payout = quoteSell(packCount);
             specified.take(poolManager, address(this), packCount, true);
             unspecified.settle(poolManager, address(this), payout, true);
@@ -134,18 +130,23 @@ contract BoxHook is BaseHook, IUnlockCallback, Owned {
         return (BaseHook.beforeSwap.selector, returnDelta, 0);
     }
 
-    function quoteBuy(uint256 packCount) public view returns (uint256 cost) {
+    /// @notice Cost in wei to buy packCount sealed packs.
+    function quoteBuy(uint256 packCount) public view returns (uint256 costWei) {
         if (packInventory() < packCount) revert SoldOut();
-        uint256 ev = packs.evPerPack();
-        if (ev == 0) revert OracleUnpriced();
-        cost = packCount * ev * premiumBps / 10_000;
+        costWei = _usdToWei(packCount * packs.evPerPack() * premiumBps / 10_000);
     }
 
-    function quoteSell(uint256 packCount) public view returns (uint256 payout) {
-        uint256 ev = packs.evPerPack();
-        if (ev == 0) revert OracleUnpriced();
-        payout = packCount * ev * buybackBps / 10_000;
-        if (usdcFloat() < payout) revert NoBuybackFloat();
+    /// @notice Payout in wei for selling packCount sealed packs back.
+    function quoteSell(uint256 packCount) public view returns (uint256 payoutWei) {
+        payoutWei = _usdToWei(packCount * packs.evPerPack() * buybackBps / 10_000);
+        if (ethFloat() < payoutWei) revert NoBuybackFloat();
+    }
+
+    function _usdToWei(uint256 usd6) internal view returns (uint256) {
+        if (usd6 == 0) revert OracleUnpriced();
+        uint256 ethUsd = packs.oracle().ethUsd();
+        if (ethUsd == 0) revert OracleUnpriced();
+        return usd6 * 1e18 / ethUsd;
     }
 
     /// @notice Unsold packs held by the hook, as ERC-6909 claims.
@@ -153,9 +154,9 @@ contract BoxHook is BaseHook, IUnlockCallback, Owned {
         return poolManager.balanceOf(address(this), Currency.wrap(address(packs)).toId());
     }
 
-    /// @notice USDC available for buybacks and withdrawal, as ERC-6909 claims.
-    function usdcFloat() public view returns (uint256) {
-        return poolManager.balanceOf(address(this), Currency.wrap(address(usdc)).toId());
+    /// @notice ETH available for buybacks and withdrawal, as ERC-6909 claims.
+    function ethFloat() public view returns (uint256) {
+        return poolManager.balanceOf(address(this), CurrencyLibrary.ADDRESS_ZERO.toId());
     }
 
     /// @notice Convert the hook's real PACK balance (minted by Booster.loadBox) into claims.
@@ -164,9 +165,9 @@ contract BoxHook is BaseHook, IUnlockCallback, Owned {
         poolManager.unlock(abi.encode(DEPOSIT, Currency.wrap(address(packs)), amount, address(this)));
     }
 
-    /// @notice House revenue: sale proceeds minus buybacks, paid out as real USDC.
+    /// @notice House revenue: sale proceeds minus buybacks, paid out as real ETH.
     function withdraw(address to, uint256 amount) external onlyOwner {
-        poolManager.unlock(abi.encode(WITHDRAW, Currency.wrap(address(usdc)), amount, to));
+        poolManager.unlock(abi.encode(WITHDRAW, CurrencyLibrary.ADDRESS_ZERO, amount, to));
     }
 
     function unlockCallback(bytes calldata data) external onlyPoolManager returns (bytes memory) {

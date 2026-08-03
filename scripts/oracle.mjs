@@ -31,6 +31,13 @@ for (const group of [...new Set(CARDS.map((c) => c.group))]) {
   }
 }
 
+const spot = await fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot", {
+  headers: { "user-agent": "berrybox-oracle/1.0" },
+});
+if (!spot.ok) throw new Error(`coinbase spot: HTTP ${spot.status}`);
+const ethUsd = Number((await spot.json()).data.amount);
+console.log(`ETH: $${ethUsd}`);
+
 const ids = [];
 const prices = [];
 for (const c of CARDS) {
@@ -42,8 +49,13 @@ for (const c of CARDS) {
   console.log(`${c.slug}: $${row.marketPrice}`);
 }
 
+const opts = { stdio: ["ignore", "ignore", "inherit"] };
 execSync(
   `cast send ${addr.oracle} "setPrices(uint16[],uint256[])" "[${ids}]" "[${prices}]" --rpc-url ${RPC} --private-key ${KEY}`,
-  { stdio: "inherit" }
+  opts
+);
+execSync(
+  `cast send ${addr.oracle} "setEthUsd(uint256)" ${Math.round(ethUsd * 1e6)} --rpc-url ${RPC} --private-key ${KEY}`,
+  opts
 );
 console.log("oracle updated");

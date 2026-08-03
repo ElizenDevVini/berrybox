@@ -32,10 +32,10 @@
       <h1>a booster box<br /><em>that prices itself.</em></h1>
       <p class="lede">
         Twenty-four real One Piece TCG cards, committed on-chain before the
-        first pack sells. A Uniswap v4 hook quotes every sealed pack at the
-        expected value of what is still inside the box, marked to live
-        TCGplayer prices. Pull the Manga Shanks and every remaining pack
-        reprices in the same block.
+        first pack sells. Buy sealed packs with ETH through a Uniswap v4 pool:
+        the hook quotes every pack at the expected value of what is still
+        inside the box, marked to live TCGplayer prices. Pull the Manga Shanks
+        and every remaining pack reprices in the same block.
       </p>
       <div class="hero-actions">
         <button id="heroBuyBtn">buy a pack<span class="mono" id="heroPrice"></span></button>
@@ -44,9 +44,9 @@
       <p class="hero-fine mono" id="heroStrip"></p>
     </div>
     <div class="hero-fan" aria-hidden="true">
-      <img src="/cards/zoro.png" alt="" class="fan-l" />
-      <img src="/cards/luffy.png" alt="" class="fan-c" />
-      <img src="/cards/shanks.png" alt="" class="fan-r" />
+      <img src="/cards/zoro.jpg" alt="" class="fan-l" />
+      <img src="/cards/shanks.jpg" alt="" class="fan-c" />
+      <img src="/cards/luffy.jpg" alt="" class="fan-r" />
       <span class="fan-note mono">the three chase cards. all still in the box, until they aren't.</span>
     </div>
   </section>
@@ -64,7 +64,7 @@
           <div class="pack-actions">
             <div class="price-line">
               <span class="label">pack price</span>
-              <span class="mono big" id="buyPrice">—</span>
+              <span class="price-stack"><span class="mono big" id="buyPrice">—</span><span class="mono dim" id="buyPriceUsd"></span></span>
             </div>
             <div class="price-line">
               <span class="label">buyback</span>
@@ -127,9 +127,10 @@
       <div class="how-step">
         <span class="mono step-no">ii.</span>
         <h3>the pool is the vending machine</h3>
-        <p>Packs are a token you buy by swapping USDC through a Uniswap v4 pool.
-        The hook replaces the AMM curve entirely: no liquidity providers, just a
-        quote derived from the oracle value of the unopened cards.</p>
+        <p>Packs are a token you buy by swapping native ETH through a Uniswap v4
+        pool. The hook replaces the AMM curve entirely: no liquidity providers,
+        just a quote derived from the TCGplayer value of the unopened cards and
+        the live ETH price.</p>
       </div>
       <div class="how-step">
         <span class="mono step-no">iii.</span>
@@ -139,7 +140,7 @@
         packs back and walk away.</p>
       </div>
     </div>
-    <p class="colophon mono">uniswap v4 hook demo · runs on local anvil · art generated with higgsfield · one piece belongs to shueisha, this is a non-commercial demo</p>
+    <p class="colophon mono">uniswap v4 hook demo · runs on local anvil · card scans and market prices via tcgplayer · one piece belongs to shueisha and bandai, this is a non-commercial demo</p>
   </section>
 
   <div class="overlay" id="overlay">

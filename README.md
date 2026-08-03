@@ -2,16 +2,16 @@
 
 Provably fair trading card blind boxes, priced by a Uniswap v4 hook.
 
-A box is a fixed set of cards whose full contents are committed on-chain at load. Contents are public, draw order is not. Sealed packs are an ERC-20 you buy by swapping USDC through a v4 pool. The hook replaces the AMM curve with an EV curve: pack price equals the expected value of the remaining box contents times a premium. When someone pulls a chase card, every remaining pack reprices in the same block. Packs can also be sold back to the hook at EV minus a spread, so sealed product stays liquid.
+A box is a fixed set of cards whose full contents are committed on-chain at load. Contents are public, draw order is not. Sealed packs are an ERC-20 you buy by swapping native ETH through a v4 pool. The hook replaces the AMM curve with an EV curve: pack price equals the expected value of the remaining box contents times a premium, converted to wei at the oracle's ETH/USD rate. When someone pulls a chase card, every remaining pack reprices in the same block. Packs can also be sold back to the hook at EV minus a spread, so sealed product stays liquid.
 
-Demo card set is One Piece themed with art generated via Higgsfield. Local demo only. The character IP belongs to Shueisha, do not ship this commercially.
+The box maps to real One Piece TCG singles priced from TCGplayer market data. Local demo only. The card game and its images belong to Bandai/Shueisha, do not ship this commercially.
 
 ## How it works
 
-- `BoxHook.sol` is a custom-curve v4 hook. The pool has no LP liquidity. The hook is the sole counterparty, holding unsold pack inventory and the USDC float as ERC-6909 claims. Buys are exact-output only, sells exact-input only, so packs stay whole-numbered. Buy price is EV x 1.15, buyback is EV x 0.90. The spread is house revenue.
+- `BoxHook.sol` is a custom-curve v4 hook on a native-ETH/PACK pool. The pool has no LP liquidity. The hook is the sole counterparty, holding unsold pack inventory and the ETH float as ERC-6909 claims. Buys are exact-output only, sells exact-input only, so packs stay whole-numbered. Buy price is EV x 1.15, buyback is EV x 0.90, both quoted in wei. The spread is house revenue. Buying needs no token approval since payment is native ETH.
 - `Booster.sol` is the pack token plus the box manifest. `open()` burns a pack and commits, `reveal()` draws a card one block later from the remaining manifest, without replacement.
 - `CardVault.sol` is one ERC-721 per physical card in custody. `redeem()` burns and emits a shipment request. Custody is simulated here.
-- `CardOracle.sol` is a pushed price feed per card design. `scripts/oracle.mjs` fills it with real TCGplayer market prices for the actual singles (via tcgcsv.com, a daily mirror of TCGplayer's price dump). The demo box maps to real cards: OP01-120 SEC Manga Shanks, OP05-119 SEC alt-art Luffy, OP01-025 SR parallel Zoro, plus five OP-01 commons.
+- `CardOracle.sol` is a pushed price feed: USD per card design plus an ETH/USD rate. `scripts/oracle.mjs` fills it with real TCGplayer market prices for the actual singles (via tcgcsv.com, a daily mirror of TCGplayer's price dump) and the Coinbase ETH spot price. The demo box maps to real cards: OP01-120 SEC Manga Shanks, OP05-119 SEC alt-art Luffy, OP01-025 SR parallel Zoro, plus five OP-01 commons.
 
 EV per pack = sum of oracle prices of unopened cards / unopened count. Every remaining card backs exactly one outstanding pack, so this is the exact expected value of any single draw.
 
@@ -44,6 +44,6 @@ Open http://localhost:5173. The app signs with anvil account 0, no wallet extens
 - The oracle is owner-pushed from TCGplayer daily data. Production needs a signed feed with staleness checks, and intraday data for the grails.
 - PoolManager is deployed without the code size limit for local convenience.
 
-## Art
+## Card images
 
-`scripts/genart.sh` regenerates card art through the Higgsfield CLI. Chase cards use nano_banana_2_lite, commons use z_image.
+`web/public/cards/` holds the official TCGplayer product images for the real singles. Bandai distributes most alt-art card images only with a SAMPLE watermark; every card database (TCGplayer, Bandai's own site, Limitless) shows the same files, so the watermarked ones are used as-is. The pack wrapper is Higgsfield-generated.

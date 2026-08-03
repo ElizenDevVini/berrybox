@@ -113,9 +113,9 @@ h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
 .hero-fan img {
   position: absolute;
   width: 218px;
-  border: 2px solid var(--ink);
+  border-radius: 10px;
   background: var(--paper);
-  box-shadow: 8px 8px 0 var(--paper-deep);
+  box-shadow: 0 14px 32px rgba(34, 27, 18, 0.32), 8px 8px 0 var(--paper-deep);
   transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
@@ -203,7 +203,9 @@ h2 {
 
 .price-line { display: flex; justify-content: space-between; align-items: baseline; }
 .price-line .label { font-style: italic; color: var(--faint); }
+.price-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .big { font-size: 30px; font-weight: 500; }
+.dim { font-size: 13px; color: var(--faint); }
 
 button {
   font-family: "IBM Plex Mono", monospace;
@@ -244,10 +246,11 @@ body.busy button { cursor: wait; }
 }
 .manifest-row:last-child { border-bottom: none; }
 .manifest-row .thumb {
-  width: 34px;
-  height: 44px;
+  width: 36px;
+  height: 50px;
   object-fit: cover;
-  border: 1px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 1px 2px 4px rgba(34, 27, 18, 0.3);
   flex-shrink: 0;
 }
 .manifest-row .name { flex: 1; line-height: 1.3; }
@@ -268,10 +271,13 @@ body.busy button { cursor: wait; }
 .card-tile { position: relative; }
 .card-tile img {
   width: 100%;
-  border: 2px solid var(--ink);
+  border-radius: 6px;
+  box-shadow: 2px 4px 10px rgba(34, 27, 18, 0.3);
   display: block;
+  transition: transform 0.25s ease;
 }
-.card-tile.chase img { border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent); }
+.card-tile:hover img { transform: translateY(-4px); }
+.card-tile.chase img { box-shadow: 0 0 0 2px var(--accent), 3px 5px 12px rgba(176, 73, 31, 0.4); }
 .card-tile .card-name { font-size: 12px; margin-top: 6px; line-height: 1.3; }
 .card-tile .card-sub { font-size: 11px; color: var(--faint); font-family: "IBM Plex Mono", monospace; }
 .card-tile button {
@@ -326,8 +332,9 @@ body.busy button { cursor: wait; }
   border: 3px solid var(--paper);
   animation: flip-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
+.reveal-card.card-img img { border: none; border-radius: 14px; }
 .reveal-card.stage-pack img { animation: pack-shake 1.1s ease-in-out infinite; }
-.reveal-card.chase img { border-color: var(--accent); box-shadow: 0 0 60px rgba(176, 73, 31, 0.55); }
+.reveal-card.chase img { box-shadow: 0 0 70px rgba(176, 73, 31, 0.65); }
 .reveal-card h3 { color: var(--paper); font-size: 26px; font-weight: 900; margin-top: 16px; }
 .reveal-card p { color: var(--line); font-family: "IBM Plex Mono", monospace; font-size: 13px; margin-top: 8px; }
 

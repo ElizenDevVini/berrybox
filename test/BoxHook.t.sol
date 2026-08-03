@@ -9,7 +9,7 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "@uniswap/v4-core/src/test/PoolModifyLiquidityTest.sol";
 import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
@@ -19,28 +19,26 @@ import {BoxHook} from "../src/BoxHook.sol";
 import {Booster} from "../src/Booster.sol";
 import {CardVault} from "../src/CardVault.sol";
 import {CardOracle} from "../src/CardOracle.sol";
-import {MockUSDC} from "../src/MockUSDC.sol";
 
 contract BoxHookTest is Test {
     uint160 constant FLAGS = uint160(
         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
             | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
     );
+    uint256 constant ETH_USD = 4000e6;
 
     PoolManager pm;
     PoolSwapTest router;
     PoolModifyLiquidityTest lpRouter;
-    MockUSDC usdc;
     CardOracle oracle;
     CardVault vault;
     Booster packs;
     BoxHook hook;
     PoolKey key;
-    bool packIs0;
 
     address alice = makeAddr("alice");
 
-    // shanks 2500, nami 12, nami 12 -> ev floor((2500+12+12)/3) = 841.333333
+    // shanks 2500, nami 12, nami 12 -> ev floor((2500+12+12)/3) = 841.333333 usd
     function setUp() public {
         uint16[] memory manifest = new uint16[](3);
         manifest[0] = 2;
@@ -53,7 +51,6 @@ contract BoxHookTest is Test {
         pm = new PoolManager(address(this));
         router = new PoolSwapTest(IPoolManager(address(pm)));
         lpRouter = new PoolModifyLiquidityTest(IPoolManager(address(pm)));
-        usdc = new MockUSDC();
         oracle = new CardOracle();
         vault = new CardVault("http://localhost:5173/card/");
         packs = new Booster(oracle, vault);
@@ -66,11 +63,12 @@ contract BoxHookTest is Test {
         ids[1] = 4;
         prices[1] = 12e6;
         oracle.setPrices(ids, prices);
+        oracle.setEthUsd(ETH_USD);
 
         address flags = address(FLAGS ^ (namespace << 144));
         deployCodeTo(
             "BoxHook.sol:BoxHook",
-            abi.encode(IPoolManager(address(pm)), packs, usdc, uint256(11_500), uint256(9_000), address(this)),
+            abi.encode(IPoolManager(address(pm)), packs, uint256(11_500), uint256(9_000), address(this)),
             flags
         );
         hook = BoxHook(flags);
@@ -78,28 +76,23 @@ contract BoxHookTest is Test {
         packs.loadBox(manifest, address(hook));
         hook.depositInventory();
 
-        packIs0 = address(packs) < address(usdc);
-        (Currency c0, Currency c1) = packIs0
-            ? (Currency.wrap(address(packs)), Currency.wrap(address(usdc)))
-            : (Currency.wrap(address(usdc)), Currency.wrap(address(packs)));
-        key = PoolKey(c0, c1, 0, 60, IHooks(hook));
+        key = PoolKey(CurrencyLibrary.ADDRESS_ZERO, Currency.wrap(address(packs)), 0, 60, IHooks(hook));
         pm.initialize(key, Constants.SQRT_PRICE_1_1);
 
-        usdc.mint(alice, 100_000e6);
-        vm.startPrank(alice);
-        usdc.approve(address(router), type(uint256).max);
+        vm.deal(alice, 10 ether);
+        vm.prank(alice);
         packs.approve(address(router), type(uint256).max);
-        vm.stopPrank();
     }
 
     function _buy(uint256 n) internal {
+        uint256 cost = hook.quoteBuy(n);
         vm.prank(alice);
-        router.swap(
+        router.swap{value: cost}(
             key,
             SwapParams({
-                zeroForOne: !packIs0,
+                zeroForOne: true, // ETH (currency0) in, PACK (currency1) out
                 amountSpecified: int256(n),
-                sqrtPriceLimitX96: !packIs0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
@@ -111,26 +104,30 @@ contract BoxHookTest is Test {
         router.swap(
             key,
             SwapParams({
-                zeroForOne: packIs0,
+                zeroForOne: false, // PACK (currency1) in, ETH (currency0) out
                 amountSpecified: -int256(n),
-                sqrtPriceLimitX96: packIs0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+                sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
         );
     }
 
+    function _usdToWei(uint256 usd6) internal pure returns (uint256) {
+        return usd6 * 1e18 / ETH_USD;
+    }
+
     function test_buyAtEvTimesPremium() public {
         uint256 ev = packs.evPerPack();
         assertEq(ev, uint256(2500e6 + 12e6 + 12e6) / 3);
         uint256 cost = hook.quoteBuy(1);
-        assertEq(cost, ev * 11_500 / 10_000);
+        assertEq(cost, _usdToWei(ev * 11_500 / 10_000));
 
-        uint256 before = usdc.balanceOf(alice);
+        uint256 before = alice.balance;
         _buy(1);
-        assertEq(before - usdc.balanceOf(alice), cost);
+        assertEq(before - alice.balance, cost);
         assertEq(packs.balanceOf(alice), 1);
-        assertEq(hook.usdcFloat(), cost);
+        assertEq(hook.ethFloat(), cost);
         assertEq(hook.packInventory(), 2);
     }
 
@@ -138,11 +135,11 @@ contract BoxHookTest is Test {
         _buy(2);
         uint256 ev = packs.evPerPack();
         uint256 payout = hook.quoteSell(1);
-        assertEq(payout, ev * 9_000 / 10_000);
+        assertEq(payout, _usdToWei(ev * 9_000 / 10_000));
 
-        uint256 before = usdc.balanceOf(alice);
+        uint256 before = alice.balance;
         _sell(1);
-        assertEq(usdc.balanceOf(alice) - before, payout);
+        assertEq(alice.balance - before, payout);
         assertEq(packs.balanceOf(alice), 1);
         assertEq(hook.packInventory(), 2);
     }
@@ -172,7 +169,7 @@ contract BoxHookTest is Test {
         _deployAll(manifest, 0x5555);
 
         uint256 costBefore = hook.quoteBuy(1);
-        assertEq(costBefore, (uint256(2500e6 + 12e6) / 2) * 11_500 / 10_000);
+        assertEq(costBefore, _usdToWei((uint256(2500e6 + 12e6) / 2) * 11_500 / 10_000));
 
         _buy(1);
         vm.startPrank(alice);
@@ -191,19 +188,19 @@ contract BoxHookTest is Test {
         uint16 leftover = cards[0] == 2 ? 4 : 2;
         uint256 evAfter = oracle.price(leftover);
         assertEq(packs.evPerPack(), evAfter);
-        assertEq(hook.quoteBuy(1), evAfter * 11_500 / 10_000);
+        assertEq(hook.quoteBuy(1), _usdToWei(evAfter * 11_500 / 10_000));
         assertTrue(hook.quoteBuy(1) != costBefore);
     }
 
-    function test_usdcSpecifiedRejected() public {
+    function test_ethSpecifiedRejected() public {
         vm.prank(alice);
         vm.expectRevert();
-        router.swap(
+        router.swap{value: 1 ether}(
             key,
             SwapParams({
-                zeroForOne: !packIs0,
-                amountSpecified: -int256(100e6), // exact-input USDC -> fractional packs, must revert
-                sqrtPriceLimitX96: !packIs0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+                zeroForOne: true,
+                amountSpecified: -1 ether, // exact-input ETH -> fractional packs, must revert
+                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
@@ -220,6 +217,15 @@ contract BoxHookTest is Test {
     function test_soldOutReverts() public {
         _buy(3);
         vm.expectRevert();
-        _buy(1);
+        hook.quoteBuy(1);
+    }
+
+    function test_withdrawHouseFloat() public {
+        _buy(2);
+        uint256 float_ = hook.ethFloat();
+        address treasury = makeAddr("treasury");
+        hook.withdraw(treasury, float_);
+        assertEq(treasury.balance, float_);
+        assertEq(hook.ethFloat(), 0);
     }
 }

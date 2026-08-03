@@ -16,23 +16,24 @@ const chain = {
 const pub = createPublicClient({ chain, transport: http(RPC) });
 const wallet = createWalletClient({ chain, transport: http(RPC), account });
 
-// Each entry is a real One Piece TCG single; tcg is the TCGplayer product id the oracle tracks.
+// Each entry is a real One Piece TCG single; tcg is the TCGplayer product id the
+// oracle tracks. Card images are the TCGplayer scans of the actual cards.
 const CARDS = {
-  1: { slug: "luffy", name: "Monkey.D.Luffy", sub: "Gear Five", set: "OP05-119", rarity: "SEC alt art", tcg: 530122, chase: true },
-  2: { slug: "shanks", name: "Shanks", sub: "Red-Haired Emperor", set: "OP01-120", rarity: "SEC manga", tcg: 454666, chase: true },
-  3: { slug: "zoro", name: "Roronoa Zoro", sub: "Pirate Hunter", set: "OP01-025", rarity: "SR parallel", tcg: 453511, chase: true },
-  4: { slug: "nami", name: "Nami", sub: "Cat Burglar", set: "OP01-016", rarity: "R", tcg: 454534, chase: false },
-  5: { slug: "sanji", name: "Sanji", sub: "Black Leg", set: "OP01-013", rarity: "R", tcg: 454529, chase: false },
-  6: { slug: "chopper", name: "Tony Tony.Chopper", sub: "Cotton Candy Lover", set: "OP01-015", rarity: "UC", tcg: 454533, chase: false },
-  7: { slug: "usopp", name: "Usopp", sub: "God of Snipers", set: "OP01-004", rarity: "R", tcg: 454516, chase: false },
-  8: { slug: "robin", name: "Nico Robin", sub: "Devil Child", set: "OP01-017", rarity: "R", tcg: 454538, chase: false },
+  1: { slug: "luffy", name: "Monkey.D.Luffy", set: "OP05-119", rarity: "SEC alt art", tcg: 530122, chase: true },
+  2: { slug: "shanks", name: "Shanks", set: "OP01-120", rarity: "SEC manga", tcg: 454666, chase: true },
+  3: { slug: "zoro", name: "Roronoa Zoro", set: "OP01-025", rarity: "SR parallel", tcg: 453511, chase: true },
+  4: { slug: "nami", name: "Nami", set: "OP01-016", rarity: "R", tcg: 454534, chase: false },
+  5: { slug: "sanji", name: "Sanji", set: "OP01-013", rarity: "R", tcg: 454529, chase: false },
+  6: { slug: "chopper", name: "Tony Tony.Chopper", set: "OP01-015", rarity: "UC", tcg: 454533, chase: false },
+  7: { slug: "usopp", name: "Usopp", set: "OP01-004", rarity: "R", tcg: 454516, chase: false },
+  8: { slug: "robin", name: "Nico Robin", set: "OP01-017", rarity: "R", tcg: 454538, chase: false },
 };
 
 const hookAbi = parseAbi([
   "function quoteBuy(uint256) view returns (uint256)",
   "function quoteSell(uint256) view returns (uint256)",
   "function packInventory() view returns (uint256)",
-  "function usdcFloat() view returns (uint256)",
+  "function ethFloat() view returns (uint256)",
 ]);
 const boosterAbi = parseAbi([
   "function evPerPack() view returns (uint256)",
@@ -44,10 +45,9 @@ const boosterAbi = parseAbi([
   "function reveal() returns (uint16[])",
   "event PackOpened(address indexed opener, uint16 indexed cardId, uint256 tokenId)",
 ]);
-const usdcAbi = parseAbi([
-  "function balanceOf(address) view returns (uint256)",
-  "function allowance(address,address) view returns (uint256)",
-  "function approve(address,uint256) returns (bool)",
+const oracleAbi = parseAbi([
+  "function price(uint16) view returns (uint256)",
+  "function ethUsd() view returns (uint256)",
 ]);
 const vaultAbi = parseAbi([
   "function cardIdOf(uint256) view returns (uint16)",
@@ -59,24 +59,25 @@ const routerAbi = parseAbi([
   "struct PoolKey { address currency0; address currency1; uint24 fee; int24 tickSpacing; address hooks; }",
   "struct SwapParams { bool zeroForOne; int256 amountSpecified; uint160 sqrtPriceLimitX96; }",
   "struct TestSettings { bool takeClaims; bool settleUsingBurn; }",
-  "function swap(PoolKey key, SwapParams params, TestSettings testSettings, bytes hookData) returns (int256)",
+  "function swap(PoolKey key, SwapParams params, TestSettings testSettings, bytes hookData) payable returns (int256)",
 ]);
 
 const MIN_SQRT = 4295128739n + 1n;
 const MAX_SQRT = 1461446703485210103287273052203988822378723970342n - 1n;
 const MAX_UINT = 2n ** 256n - 1n;
+const ZERO = "0x0000000000000000000000000000000000000000";
 
-const poolKey = {
-  currency0: addr.packIsCurrency0 ? addr.booster : addr.usdc,
-  currency1: addr.packIsCurrency0 ? addr.usdc : addr.booster,
-  fee: 0,
-  tickSpacing: 60,
-  hooks: addr.hook,
-};
+// native ETH is always currency0, the pack token currency1
+const poolKey = { currency0: ZERO, currency1: addr.booster, fee: 0, tickSpacing: 60, hooks: addr.hook };
 
 const $ = (id) => document.getElementById(id);
-const usd = (v) =>
-  "$" + Number(formatUnits(v, 6)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd = (v6) =>
+  "$" + Number(formatUnits(v6, 6)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eth = (wei) =>
+  "Ξ" + Number(formatUnits(wei, 18)).toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+let ethUsdRate = 0n;
+const weiUsd = (wei) => usd((wei * ethUsdRate) / 10n ** 18n);
 
 let busy = false;
 const feedLines = [];
@@ -84,44 +85,38 @@ const feedLines = [];
 function feed(line, up = false) {
   feedLines.unshift({ line, up });
   feedLines.splice(6);
-  $("feed").innerHTML = feedLines
-    .map((f) => `<div class="${f.up ? "up" : ""}">${f.line}</div>`)
-    .join("");
-}
-
-async function ensureAllowance(token, abi, spender) {
-  const allowance = await pub.readContract({ address: token, abi, functionName: "allowance", args: [account.address, spender] });
-  if (allowance < MAX_UINT / 2n) {
-    const h = await wallet.writeContract({ address: token, abi, functionName: "approve", args: [spender, MAX_UINT] });
-    await pub.waitForTransactionReceipt({ hash: h });
-  }
+  $("feed").innerHTML = feedLines.map((f) => `<div class="${f.up ? "up" : ""}">${f.line}</div>`).join("");
 }
 
 async function swapPacks(count, isBuy) {
   const params = isBuy
-    ? { zeroForOne: !addr.packIsCurrency0, amountSpecified: count, sqrtPriceLimitX96: !addr.packIsCurrency0 ? MIN_SQRT : MAX_SQRT }
-    : { zeroForOne: addr.packIsCurrency0, amountSpecified: -count, sqrtPriceLimitX96: addr.packIsCurrency0 ? MIN_SQRT : MAX_SQRT };
+    ? { zeroForOne: true, amountSpecified: count, sqrtPriceLimitX96: MIN_SQRT }
+    : { zeroForOne: false, amountSpecified: -count, sqrtPriceLimitX96: MAX_SQRT };
   const h = await wallet.writeContract({
     address: addr.swapRouter,
     abi: routerAbi,
     functionName: "swap",
     args: [poolKey, params, { takeClaims: false, settleUsingBurn: false }, "0x"],
+    value: isBuy ? await pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "quoteBuy", args: [count] }) : 0n,
   });
   await pub.waitForTransactionReceipt({ hash: h });
 }
 
 async function buyPack() {
   const price = await pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "quoteBuy", args: [1n] });
-  await ensureAllowance(addr.usdc, usdcAbi, addr.swapRouter);
-  await swapPacks(1n, true);
-  feed(`bought pack @ ${usd(price)}`);
+  await swapPacks(1n, true); // paying with native ETH, no approval needed
+  feed(`bought pack @ ${eth(price)} (${weiUsd(price)})`);
 }
 
 async function sellPack() {
   const payout = await pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "quoteSell", args: [1n] });
-  await ensureAllowance(addr.booster, boosterAbi, addr.swapRouter);
+  const allowance = await pub.readContract({ address: addr.booster, abi: boosterAbi, functionName: "allowance", args: [account.address, addr.swapRouter] });
+  if (allowance < MAX_UINT / 2n) {
+    const h = await wallet.writeContract({ address: addr.booster, abi: boosterAbi, functionName: "approve", args: [addr.swapRouter, MAX_UINT] });
+    await pub.waitForTransactionReceipt({ hash: h });
+  }
   await swapPacks(1n, false);
-  feed(`sold pack back @ ${usd(payout)}`);
+  feed(`sold pack back @ ${eth(payout)} (${weiUsd(payout)})`);
 }
 
 async function openPack() {
@@ -143,7 +138,7 @@ async function openPack() {
 
   const evAfter = await pub.readContract({ address: addr.booster, abi: boosterAbi, functionName: "evPerPack" });
   const card = CARDS[pulled];
-  feed(`pulled ${card.name} (${card.rarity})`, card.chase);
+  feed(`pulled ${card.name} ${card.set} (${card.rarity})`, card.chase);
   if (evAfter !== evBefore) {
     const dir = evAfter < evBefore ? "down" : "up";
     feed(`pack EV ${dir}: ${usd(evBefore)} -> ${usd(evAfter)}`, true);
@@ -166,8 +161,8 @@ $("overlay").addEventListener("click", () => {
     const card = revealStage.card;
     revealStage = null;
     const el = $("revealCard");
-    el.className = "reveal-card" + (card.chase ? " chase" : "");
-    el.innerHTML = `<img src="/cards/${card.slug}.png" alt="${card.name}" /><h3>${card.name}</h3><p>${card.set} · ${card.rarity} · click anywhere to close</p>`;
+    el.className = "reveal-card card-img" + (card.chase ? " chase" : "");
+    el.innerHTML = `<img src="/cards/${card.slug}.jpg" alt="${card.name}" /><h3>${card.name}</h3><p>${card.set} · ${card.rarity} · click anywhere to close</p>`;
     return;
   }
   $("overlay").classList.remove("show");
@@ -203,54 +198,53 @@ async function redeemCard(tokenId) {
 }
 
 async function refresh() {
-  const [remaining, ev, inventory, usdcFloat, usdcBal, packBal] = await Promise.all([
+  const [remaining, ev, inventory, float_, ethBal, packBal, rate] = await Promise.all([
     pub.readContract({ address: addr.booster, abi: boosterAbi, functionName: "remainingCards" }),
     pub.readContract({ address: addr.booster, abi: boosterAbi, functionName: "evPerPack" }),
     pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "packInventory" }),
-    pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "usdcFloat" }),
-    pub.readContract({ address: addr.usdc, abi: usdcAbi, functionName: "balanceOf", args: [account.address] }),
+    pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "ethFloat" }),
+    pub.getBalance({ address: account.address }),
     pub.readContract({ address: addr.booster, abi: boosterAbi, functionName: "balanceOf", args: [account.address] }),
+    pub.readContract({ address: addr.oracle, abi: oracleAbi, functionName: "ethUsd" }),
   ]);
+  ethUsdRate = rate;
 
   let buy = null, sell = null;
   try { buy = await pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "quoteBuy", args: [1n] }); } catch {}
   try { sell = await pub.readContract({ address: addr.hook, abi: hookAbi, functionName: "quoteSell", args: [1n] }); } catch {}
 
-  $("wallet").innerHTML = `${account.address.slice(0, 6)}…${account.address.slice(-4)}<br/>${usd(usdcBal)} · ${packBal} pack${packBal === 1n ? "" : "s"}`;
-  $("buyPrice").textContent = buy != null ? usd(buy) : "sold out";
-  $("sellPrice").textContent = sell != null ? usd(sell) : "no float yet";
+  $("wallet").innerHTML = `${account.address.slice(0, 6)}…${account.address.slice(-4)}<br/>${eth(ethBal)} · ${packBal} pack${packBal === 1n ? "" : "s"}`;
+  $("buyPrice").textContent = buy != null ? eth(buy) : "sold out";
+  $("buyPriceUsd").textContent = buy != null ? weiUsd(buy) : "";
+  $("sellPrice").textContent = sell != null ? `${eth(sell)} (${weiUsd(sell)})` : "no float yet";
   $("inventory").textContent = `${inventory} sealed`;
   $("buyBtn").disabled = busy || buy == null;
   $("openBtn").disabled = busy || packBal === 0n;
   $("sellBtn").disabled = busy || packBal === 0n || sell == null;
-  $("heroPrice").textContent = buy != null ? usd(buy) : "sold out";
+  $("heroPrice").textContent = buy != null ? `${eth(buy)} (${weiUsd(buy)})` : "sold out";
   $("heroBuyBtn").disabled = busy || buy == null;
   $("heroStrip").textContent =
-    `EV per pack ${usd(ev)} · ${remaining.length} cards sealed · house float ${usd(usdcFloat)}`;
+    `EV per pack ${usd(ev)} · ${remaining.length} cards sealed · ETH ${usd(rate)} · house float ${eth(float_)}`;
 
   const sum = ev * BigInt(remaining.length);
   $("mathRows").innerHTML = [
     ["cards left in box", remaining.length],
     ["value left (TCGplayer market)", usd(sum)],
     ["EV per pack", usd(ev)],
-    ["house float", usd(usdcFloat)],
+    ["ETH / USD", usd(rate)],
+    ["house float", `${eth(float_)} (${weiUsd(float_)})`],
   ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
 
   const counts = {};
   for (const id of remaining) counts[id] = (counts[id] || 0) + 1;
   const prices = {};
   await Promise.all(Object.keys(CARDS).map(async (id) => {
-    prices[id] = await pub.readContract({
-      address: addr.oracle,
-      abi: parseAbi(["function price(uint16) view returns (uint256)"]),
-      functionName: "price",
-      args: [Number(id)],
-    });
+    prices[id] = await pub.readContract({ address: addr.oracle, abi: oracleAbi, functionName: "price", args: [Number(id)] });
   }));
   $("manifest").innerHTML = Object.entries(CARDS).map(([id, c]) => {
     const n = counts[id] || 0;
     return `<div class="manifest-row ${n === 0 ? "gone" : ""}">
-      <img class="thumb" src="/cards/${c.slug}.png" alt="" />
+      <img class="thumb" src="/cards/${c.slug}.jpg" alt="" />
       <span class="name"><a href="https://www.tcgplayer.com/product/${c.tcg}" target="_blank" rel="noopener">${c.name}</a><span class="rarity ${c.chase ? "chase" : ""}">${c.set} · ${c.rarity}</span></span>
       <span class="count">x${n}</span>
       <span class="price">${usd(prices[id])}</span>
@@ -262,7 +256,7 @@ async function refresh() {
     ? owned.map((o) => {
         const c = CARDS[o.cardId];
         return `<div class="card-tile ${c.chase ? "chase" : ""}">
-          <img src="/cards/${c.slug}.png" alt="${c.name}" />
+          <img src="/cards/${c.slug}.jpg" alt="${c.name}" />
           <div class="card-name">${c.name}</div>
           <div class="card-sub">#${o.tokenId} · ${c.set} · ${usd(prices[o.cardId])}</div>
           <button class="secondary" data-redeem="${o.tokenId}">redeem physical</button>
