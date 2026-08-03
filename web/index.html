@@ -28,28 +28,35 @@
   </header>
 
   <section class="hero">
-    <div class="hero-copy">
-      <h1>a booster box<br /><em>that prices itself.</em></h1>
-      <p class="lede">
-        Twenty-four real One Piece TCG cards, committed on-chain before the
-        first pack sells. Buy sealed packs with ETH through a Uniswap v4 pool:
-        the hook quotes every pack at the expected value of what is still
-        inside the box, marked to live TCGplayer prices. Pull the Manga Shanks
-        and every remaining pack reprices in the same block.
-      </p>
-      <div class="hero-actions">
-        <button id="heroBuyBtn">buy a pack<span class="mono" id="heroPrice"></span></button>
-        <a class="ghost mono" href="#how">how it works</a>
+    <img class="hero-bg" src="/hero.png" alt="" />
+    <div class="hero-shade"></div>
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <h1>a booster box<br /><em>that prices itself.</em></h1>
+        <p class="lede">
+          Twenty-four real One Piece TCG cards, committed on-chain before the
+          first pack sells. Buy sealed packs with ETH through a Uniswap v4
+          pool: the hook quotes every pack at the expected value of what is
+          still inside the box, marked to live TCGplayer prices. Pull the
+          Manga Shanks and every remaining pack reprices in the same block.
+        </p>
+        <div class="hero-actions">
+          <button id="heroBuyBtn">buy a pack<span class="mono" id="heroPrice"></span></button>
+          <a class="ghost mono" href="#how">how it works</a>
+        </div>
+        <p class="hero-fine mono" id="heroStrip"></p>
       </div>
-      <p class="hero-fine mono" id="heroStrip"></p>
-    </div>
-    <div class="hero-fan" aria-hidden="true">
-      <img src="/cards/zoro.jpg" alt="" class="fan-l" />
-      <img src="/cards/shanks.jpg" alt="" class="fan-c" />
-      <img src="/cards/luffy.jpg" alt="" class="fan-r" />
-      <span class="fan-note mono">the three chase cards. all still in the box, until they aren't.</span>
+      <div class="hero-fan" aria-hidden="true">
+        <img src="/cards/zoro.jpg" alt="" class="fan-l" />
+        <img src="/cards/shanks.jpg" alt="" class="fan-c" />
+        <img src="/cards/luffy.jpg" alt="" class="fan-r" />
+      </div>
     </div>
   </section>
+
+  <div class="ticker mono" aria-hidden="true">
+    <div class="ticker-inner"><span id="tickerA"></span><span id="tickerB"></span></div>
+  </div>
 
   <main>
     <section class="left" id="box">

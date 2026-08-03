@@ -241,6 +241,12 @@ async function refresh() {
   await Promise.all(Object.keys(CARDS).map(async (id) => {
     prices[id] = await pub.readContract({ address: addr.oracle, abi: oracleAbi, functionName: "price", args: [Number(id)] });
   }));
+  const tape = Object.entries(CARDS)
+    .map(([id, c]) => `${c.name} ${c.set} ${usd(prices[id])}`)
+    .join("   ·   ");
+  $("tickerA").textContent = tape;
+  $("tickerB").textContent = tape;
+
   $("manifest").innerHTML = Object.entries(CARDS).map(([id, c]) => {
     const n = counts[id] || 0;
     return `<div class="manifest-row ${n === 0 ? "gone" : ""}">
